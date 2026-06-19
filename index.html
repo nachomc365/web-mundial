@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mundial 2026 - Conectado a Football-Data API</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <style>
+        :root { --primary: #4361ee; --secondary: #4cc9f0; --dark: #2b2d42; --light-bg: #f4f7fe; --success: #2ec4b6; --danger: #e63946; --warning: #ffb703; }
+        body { background-color: var(--light-bg); font-family: 'Poppins', sans-serif; color: var(--dark); }
+        .hero-banner { background: linear-gradient(135deg, #0f2027, #203a43, #2c5364); color: white; padding: 40px 20px 60px; border-radius: 0 0 40px 40px; margin-bottom: -40px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); position: relative;}
+        .glass-card { background: #ffffff; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.04); border: 1px solid rgba(255,255,255,0.8); padding: 25px; margin-bottom: 30px; position: relative; z-index: 2; }
+        .form-select-custom { border-radius: 15px; padding: 12px 20px; border: 2px solid #e2e8f0; font-weight: 500; box-shadow: 0 4px 15px rgba(0,0,0,0.02); transition: all 0.3s; }
+        #map { height: 480px; width: 100%; border-radius: 15px; z-index: 1; }
+        .table-wrapper { max-height: 500px; overflow-y: auto; border-radius: 15px; }
+        .table-wrapper::-webkit-scrollbar { width: 8px; }
+        .table-wrapper::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
+        .table-wrapper::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .table thead th { position: sticky; top: 0; z-index: 2; background-color: #f8fafc; color: #64748b; font-weight: 600; text-transform: uppercase; font-size: 0.8rem; border-bottom: 2px solid #e2e8f0; }
+        .goal-input { width: 45px; height: 38px; font-size: 1.1rem; text-align: center; border: 2px solid #e2e8f0; border-radius: 10px; background-color: #f8fafc; font-weight: 700; transition: all 0.2s; }
+        .goal-input:disabled { background-color: #e2e8f0; color: #475569; cursor: not-allowed; border-color: #cbd5e1;}
+        .btn-modern { border-radius: 10px; font-weight: 600; padding: 6px 12px; transition: all 0.3s ease; text-transform: uppercase; font-size: 0.75rem; }
+        .btn-save { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; border: none; }
+        .nav-pills .nav-link { border-radius: 50px; padding: 12px 30px; font-weight: 600; color: #64748b; margin: 0 5px; }
+        .nav-pills .nav-link.active { background: linear-gradient(135deg, var(--primary), var(--secondary)); box-shadow: 0 4px 15px rgba(67, 97, 238, 0.4); color: white; }
+        .group-card { border-radius: 15px; overflow: hidden; border: 1px solid #e2e8f0; }
+        .group-header { background: linear-gradient(135deg, #1e293b, #334155); color: white; padding: 8px 12px; font-weight: 600; }
+        .phase-section { border-bottom: 2px dashed #e2e8f0; padding-bottom: 20px; margin-bottom: 30px; }
+        .phase-title { font-weight: 700; margin-bottom: 20px; text-transform: uppercase; font-size: 1.1rem; letter-spacing: 0.5px; }
+        .bracket-row { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
+        .ko-match-card { background: #fff; border-radius: 14px; padding: 15px; width: 320px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid #e2e8f0; }
+        .ko-match-header { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: #94a3b8; margin-bottom: 10px; display: flex; justify-content: space-between; }
+        .ko-team-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .ko-team-name { font-weight: 600; font-size: 0.95rem; }
+        .badge-info-ko { font-size: 0.65rem; padding: 3px 6px; border-radius: 5px; background: #f1f5f9; color: #64748b; font-weight: 500; }
+        .api-badge { position: absolute; top: 20px; right: 20px; z-index: 10; background: rgba(0,0,0,0.5); backdrop-filter: blur(5px); padding: 8px 15px; border-radius: 30px; border: 1px solid rgba(255,255,255,0.2); cursor: pointer; transition: all 0.3s;}
+        .api-badge:hover { background: rgba(255,255,255,0.2); }
+        .api-status-dot { display: inline-block; width: 10px; height: 10px; background-color: var(--danger); border-radius: 50%; margin-right: 5px; box-shadow: 0 0 10px var(--danger); animation: pulse 2s infinite; }
+        .api-status-dot.online { background-color: var(--success); box-shadow: 0 0 10px var(--success); }
+        @keyframes pulse { 0% { transform: scale(0.95); opacity: 0.8; } 50% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(0.95); opacity: 0.8; } }
+        .locked-bracket-message { background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 16px; padding: 40px; text-align: center; color: #64748b; }
+    </style>
+</head>
+<body>
+
+    <div class="hero-banner text-center">
+        <!-- Configuración de API en tiempo real -->
+        <div class="api-badge" data-bs-toggle="modal" data-bs-target="#apiModal">
+            <span class="api-status-dot" id="apiIndicator"></span>
+            <span id="apiText" class="fw-bold small text-white">API Desconectada (Click para configurar)</span>
+        </div>
+        <div class="container pt-4">
+            <h1 class="fw-bold display-4 mb-2">🏆 Dashboard Mundial 2026</h1>
+            <p class="lead opacity-75 mb-0">Sincronización Inteligente Automática con Football-Data.org</p>
+        </div>
+    </div>
+
+    <!-- Modal para insertar el API Token -->
+    <div class="modal fade" id="apiModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header border-bottom-0 bg-light rounded-top-4">
+                    <h5 class="modal-title fw-bold text-dark">⚙️ Configurar Football-Data API</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="small text-muted mb-3">Introduce tu <strong>X-Auth-Token</strong> gratuito de Football-Data.org para que la aplicación actualice los resultados y recalcule los cruces por sí sola cada 60 segundos.</p>
+                    <input type="text" id="apiTokenInput" class="form-control form-control-lg mb-3" placeholder="Ej: 1a2b3c4d5e6f7g8h9i0j...">
+                    <button class="btn btn-primary w-100 fw-bold py-2" onclick="conectarAPI()" data-bs-dismiss="modal">Conectar y Sincronizar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container py-4">
+        
+        <!-- Buscador Mapa -->
+        <div class="row mb-4 justify-content-center">
+            <div class="col-md-6 glass-card text-center" style="padding: 15px 25px; margin-top: -10px;">
+                <label for="teamSearch" class="form-label fw-bold text-muted small text-uppercase mb-2">📍 Filtrar Sedes y Partidos en el Mapa:</label>
+                <select id="teamSearch" class="form-select form-select-custom text-center">
+                    <option value="">🌎 Mostrar todos los estadios...</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Mapa -->
+        <div class="row mb-4">
+            <div class="col-12"><div class="glass-card p-2"><div id="map"></div></div></div>
+        </div>
+
+        <!-- Fase de Grupos -->
+        <div class="row mb-5">
+            <div class="col-12">
+                <div class="glass-card">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h4 class="fw-bold m-0 text-dark">⚽ Panel de Resultados Oficiales</h4>
+                        <span class="badge bg-success bg-opacity-10 text-success border border-success rounded-pill px-3 py-2 fw-bold" id="autoUpdateBadge" style="display:none;">
+                            ⚡ Actualización Automática Activa
+                        </span>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="table text-center align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Grp</th>
+                                    <th>Estadio / Ciudad</th>
+                                    <th class="text-end">Local</th>
+                                    <th style="width: 60px;">GL</th>
+                                    <th style="width: 60px;">GV</th>
+                                    <th class="text-start">Visitante</th>
+                                    <th>Estado / Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="matchesBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pestañas Principales -->
+        <ul class="nav nav-pills mb-4 justify-content-center" id="tournamentTabs" role="tablist">
+            <li class="nav-item">
+                <button class="nav-link active" id="grupos-tab" data-bs-toggle="tab" data-bs-target="#grupos" type="button" role="tab">Clasificación de Grupos</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="eliminatorias-tab" data-bs-toggle="tab" data-bs-target="#eliminatorias" type="button" role="tab">Fase Eliminatoria Automática</button>
+            </li>
+        </ul>
+        
+        <div class="tab-content" id="tabContent">
+            <div class="tab-pane fade show active" id="grupos" role="tabpanel">
+                <div class="glass-card"><div class="row" id="groupsContainer"></div></div>
+            </div>
+            <div class="tab-pane fade" id="eliminatorias" role="tabpanel">
+                <div id="bracketContentWrapper"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // --- 1. DICCIONARIO DE TRADUCCIÓN INGLÉS (API) -> ESPAÑOL ---
+        const dictionary = {
+            "Mexico": "México", "South Africa": "Sudáfrica", "South Korea": "Corea del Sur", "Czech Republic": "República Checa",
+            "Canada": "Canadá", "Switzerland": "Suiza", "Qatar": "Qatar", "Bosnia and Herzegovina": "Bosnia y Herzegovina",
+            "Brazil": "Brasil", "Morocco": "Marruecos", "Haiti": "Haití", "Scotland": "Escocia",
+            "United States": "Estados Unidos", "Paraguay": "Paraguay", "Australia": "Australia", "Turkey": "Turquía",
+            "Germany": "Alemania", "Curacao": "Curazao", "Cote d'Ivoire": "Costa de Marfil", "Ecuador": "Ecuador",
+            "Netherlands": "Países Bajos", "Japan": "Japón", "Tunisia": "Túnez", "Sweden": "Suecia",
+            "Belgium": "Bélgica", "Egypt": "Egipto", "Iran": "Irán", "New Zealand": "Nueva Zelanda",
+            "Spain": "España", "Cape Verde": "Cabo Verde", "Saudi Arabia": "Arabia Saudita", "Uruguay": "Uruguay",
+            "France": "Francia", "Senegal": "Senegal", "Norway": "Noruega", "Iraq": "Irak",
+            "Argentina": "Argentina", "Algeria": "Argelia", "Austria": "Austria", "Jordan": "Jordania",
+            "Portugal": "Portugal", "Uzbekistan": "Uzbekistán", "Colombia": "Colombia", "DR Congo": "RD Congo",
+            "England": "Inglaterra", "Croatia": "Croacia", "Ghana": "Ghana", "Panama": "Panamá"
+        };
+
+        const stadiums = {
+            mexico_city: { name: "Estadio Azteca", city: "Ciudad de México", lat: 19.3029, lng: -99.1505 },
+            guadalajara: { name: "Estadio Akron", city: "Guadalajara", lat: 20.6817, lng: -103.4626 },
+            monterrey: { name: "Estadio BBVA", city: "Monterrey", lat: 25.6714, lng: -100.2436 },
+            vancouver: { name: "BC Place", city: "Vancouver", lat: 49.2768, lng: -123.1120 },
+            toronto: { name: "BMO Field", city: "Toronto", lat: 43.6332, lng: -79.4186 },
+            ny_nj: { name: "MetLife Stadium", city: "NY / NJ", lat: 40.8128, lng: -74.0745 },
+            dallas: { name: "AT&T Stadium", city: "Dallas", lat: 32.7473, lng: -97.0945 },
+            kansas: { name: "Arrowhead Stadium", city: "Kansas City", lat: 39.0489, lng: -94.4839 },
+            houston: { name: "NRG Stadium", city: "Houston", lat: 29.6847, lng: -95.4107 },
+            atlanta: { name: "Mercedes-Benz Stadium", city: "Atlanta", lat: 33.7550, lng: -84.4008 },
+            la: { name: "SoFi Stadium", city: "Los Ángeles", lat: 33.9535, lng: -118.3390 },
+            philly: { name: "Lincoln Financial", city: "Filadelfia", lat: 39.9008, lng: -75.1675 },
+            seattle: { name: "Lumen Field", city: "Seattle", lat: 47.5952, lng: -122.3316 },
+            sf_bay: { name: "Levi's Stadium", city: "San Francisco", lat: 37.4032, lng: -121.9698 },
+            boston: { name: "Gillette Stadium", city: "Boston", lat: 42.0909, lng: -71.2643 },
+            miami: { name: "Hard Rock Stadium", city: "Miami", lat: 25.9580, lng: -80.2389 },
+            por_confirmar: { name: "Sede Regional", city: "Por confirmar", lat: 39.8283, lng: -98.5795 }
+        };
+
+        const groupsData = {
+            A: ["México", "Sudáfrica", "Corea del Sur", "República Checa"], B: ["Canadá", "Suiza", "Qatar", "Bosnia y Herzegovina"],
+            C: ["Brasil", "Marruecos", "Haití", "Escocia"], D: ["Estados Unidos", "Paraguay", "Australia", "Turquía"],
+            E: ["Alemania", "Curazao", "Costa de Marfil", "Ecuador"], F: ["Países Bajos", "Japón", "Túnez", "Suecia"],
+            G: ["Bélgica", "Egipto", "Irán", "Nueva Zelanda"], H: ["España", "Cabo Verde", "Arabia Saudita", "Uruguay"],
+            I: ["Francia", "Senegal", "Noruega", "Irak"], J: ["Argentina", "Argelia", "Austria", "Jordania"],
+            K: ["Portugal", "Uzbekistán", "Colombia", "RD Congo"], L: ["Inglaterra", "Croacia", "Ghana", "Panamá"]
+        };
+
+        let teamsList = [];
+        let matches = [];
+        let finalStandings = {}; 
+        let knockoutScores = {};
+        
+        // Variables para la API
+        let apiToken = localStorage.getItem('football_data_api_token') || null;
+        let syncInterval = null;
+
+        function loadOfficialMatches() {
+            // Se mantiene el calendario base (Plantilla). Si hay API, los goles de aquí se sobrescriben solos.
+            matches = [
+                { id: 1, date: "11 Jun", group: "A", home: "México", away: "Sudáfrica", stadium: "mexico_city", played: true, hScore: 2, aScore: 0, fromApi: false },
+                { id: 2, date: "11 Jun", group: "A", home: "Corea del Sur", away: "República Checa", stadium: "guadalajara", played: true, hScore: 2, aScore: 1, fromApi: false },
+                { id: 3, date: "12 Jun", group: "B", home: "Canadá", away: "Bosnia y Herzegovina", stadium: "toronto", played: true, hScore: 1, aScore: 1, fromApi: false },
+                { id: 4, date: "12 Jun", group: "D", home: "Estados Unidos", away: "Paraguay", stadium: "la", played: true, hScore: 4, aScore: 1, fromApi: false },
+                { id: 5, date: "13 Jun", group: "B", home: "Qatar", away: "Suiza", stadium: "sf_bay", played: true, hScore: 1, aScore: 1, fromApi: false },
+                { id: 6, date: "13 Jun", group: "C", home: "Brasil", away: "Marruecos", stadium: "ny_nj", played: true, hScore: 1, aScore: 1, fromApi: false },
+                { id: 7, date: "13 Jun", group: "C", home: "Haití", away: "Escocia", stadium: "boston", played: true, hScore: 0, aScore: 1, fromApi: false },
+                { id: 8, date: "13 Jun", group: "D", home: "Australia", away: "Turquía", stadium: "vancouver", played: true, hScore: 2, aScore: 0, fromApi: false },
+                { id: 9, date: "14 Jun", group: "E", home: "Alemania", away: "Curazao", stadium: "houston", played: true, hScore: 7, aScore: 1, fromApi: false },
+                { id: 10, date: "14 Jun", group: "F", home: "Países Bajos", away: "Japón", stadium: "dallas", played: true, hScore: 2, aScore: 2, fromApi: false },
+                { id: 11, date: "14 Jun", group: "E", home: "Costa de Marfil", away: "Ecuador", stadium: "philly", played: true, hScore: 1, aScore: 0, fromApi: false },
+                { id: 12, date: "14 Jun", group: "F", home: "Suecia", away: "Túnez", stadium: "monterrey", played: true, hScore: 5, aScore: 1, fromApi: false },
+                { id: 13, date: "15 Jun", group: "H", home: "España", away: "Cabo Verde", stadium: "atlanta", played: true, hScore: 0, aScore: 0, fromApi: false },
+                { id: 14, date: "15 Jun", group: "G", home: "Bélgica", away: "Egipto", stadium: "seattle", played: true, hScore: 1, aScore: 1, fromApi: false },
+                { id: 15, date: "15 Jun", group: "H", home: "Arabia Saudita", away: "Uruguay", stadium: "miami", played: true, hScore: 1, aScore: 1, fromApi: false },
+                { id: 16, date: "15 Jun", group: "G", home: "Irán", away: "Nueva Zelanda", stadium: "la", played: true, hScore: 2, aScore: 2, fromApi: false },
+                { id: 17, date: "16 Jun", group: "I", home: "Francia", away: "Senegal", stadium: "ny_nj", played: true, hScore: 3, aScore: 1, fromApi: false },
+                { id: 18, date: "16 Jun", group: "I", home: "Irak", away: "Noruega", stadium: "boston", played: true, hScore: 1, aScore: 4, fromApi: false },
+                { id: 19, date: "16 Jun", group: "J", home: "Argentina", away: "Argelia", stadium: "kansas", played: true, hScore: 3, aScore: 0, fromApi: false },
+                { id: 20, date: "16 Jun", group: "J", home: "Austria", away: "Jordania", stadium: "sf_bay", played: true, hScore: 3, aScore: 1, fromApi: false },
+                { id: 21, date: "17 Jun", group: "K", home: "Portugal", away: "RD Congo", stadium: "houston", played: true, hScore: 1, aScore: 1, fromApi: false },
+                { id: 22, date: "17 Jun", group: "L", home: "Inglaterra", away: "Croacia", stadium: "dallas", played: true, hScore: 4, aScore: 2, fromApi: false },
+                { id: 23, date: "17 Jun", group: "L", home: "Ghana", away: "Panamá", stadium: "toronto", played: true, hScore: 1, aScore: 0, fromApi: false },
+                { id: 24, date: "17 Jun", group: "K", home: "Uzbekistán", away: "Colombia", stadium: "mexico_city", played: true, hScore: 1, aScore: 3, fromApi: false },
+                { id: 25, date: "18 Jun", group: "A", home: "República Checa", away: "Sudáfrica", stadium: "atlanta", played: true, hScore: 1, aScore: 1, fromApi: false },
+                { id: 26, date: "18 Jun", group: "B", home: "Suiza", away: "Bosnia y Herzegovina", stadium: "la", played: true, hScore: 4, aScore: 1, fromApi: false },
+                { id: 27, date: "18 Jun", group: "B", home: "Canadá", away: "Qatar", stadium: "vancouver", played: true, hScore: 6, aScore: 0, fromApi: false },
+                { id: 28, date: "19 Jun", group: "A", home: "México", away: "Corea del Sur", stadium: "guadalajara", played: true, hScore: 1, aScore: 0, fromApi: false },
+                { id: 29, date: "19 Jun", group: "D", home: "Estados Unidos", away: "Australia", stadium: "seattle", played: true, hScore: 2, aScore: 0, fromApi: false },
+                
+                { id: 30, date: "20 Jun 00:00", group: "C", home: "Escocia", away: "Marruecos", stadium: "boston", played: false, fromApi: false },
+                { id: 31, date: "20 Jun 02:30", group: "C", home: "Brasil", away: "Haití", stadium: "philly", played: false, fromApi: false },
+                { id: 32, date: "20 Jun 05:00", group: "D", home: "Turquía", away: "Paraguay", stadium: "sf_bay", played: false, fromApi: false },
+                { id: 33, date: "20 Jun 19:00", group: "F", home: "Países Bajos", away: "Suecia", stadium: "houston", played: false, fromApi: false },
+                { id: 34, date: "20 Jun 22:00", group: "E", home: "Alemania", away: "Costa de Marfil", stadium: "toronto", played: false, fromApi: false },
+                { id: 35, date: "21 Jun 02:00", group: "E", home: "Ecuador", away: "Curazao", stadium: "kansas", played: false, fromApi: false },
+                { id: 36, date: "21 Jun 06:00", group: "F", home: "Túnez", away: "Japón", stadium: "monterrey", played: false, fromApi: false },
+                { id: 37, date: "21 Jun 18:00", group: "H", home: "España", away: "Arabia Saudita", stadium: "atlanta", played: false, fromApi: false },
+                { id: 38, date: "21 Jun 21:00", group: "G", home: "Bélgica", away: "Irán", stadium: "la", played: false, fromApi: false },
+                { id: 39, date: "22 Jun 00:00", group: "H", home: "Uruguay", away: "Cabo Verde", stadium: "miami", played: false, fromApi: false },
+                { id: 40, date: "22 Jun 03:00", group: "G", home: "Nueva Zelanda", away: "Egipto", stadium: "vancouver", played: false, fromApi: false },
+                { id: 41, date: "22 Jun 19:00", group: "J", home: "Argentina", away: "Austria", stadium: "dallas", played: false, fromApi: false },
+                { id: 42, date: "22 Jun 23:00", group: "I", home: "Francia", away: "Irak", stadium: "philly", played: false, fromApi: false },
+                { id: 43, date: "23 Jun 02:00", group: "I", home: "Noruega", away: "Senegal", stadium: "ny_nj", played: false, fromApi: false },
+                { id: 44, date: "23 Jun 05:00", group: "J", home: "Jordania", away: "Argelia", stadium: "sf_bay", played: false, fromApi: false },
+                { id: 45, date: "23 Jun 19:00", group: "K", home: "Portugal", away: "Uzbekistán", stadium: "houston", played: false, fromApi: false },
+                { id: 46, date: "23 Jun 22:00", group: "L", home: "Inglaterra", away: "Ghana", stadium: "boston", played: false, fromApi: false },
+                { id: 47, date: "24 Jun 01:00", group: "L", home: "Panamá", away: "Croacia", stadium: "toronto", played: false, fromApi: false },
+                { id: 48, date: "24 Jun 04:00", group: "K", home: "Colombia", away: "RD Congo", stadium: "guadalajara", played: false, fromApi: false },
+                { id: 49, date: "24 Jun 21:00", group: "B", home: "Suiza", away: "Canadá", stadium: "vancouver", played: false, fromApi: false },
+                { id: 50, date: "24 Jun 21:00", group: "B", home: "Bosnia y Herzegovina", away: "Qatar", stadium: "seattle", played: false, fromApi: false },
+                { id: 51, date: "25 Jun 00:00", group: "C", home: "Marruecos", away: "Haití", stadium: "atlanta", played: false, fromApi: false },
+                { id: 52, date: "25 Jun 00:00", group: "C", home: "Escocia", away: "Brasil", stadium: "miami", played: false, fromApi: false },
+                { id: 53, date: "25 Jun 03:00", group: "A", home: "Sudáfrica", away: "Corea del Sur", stadium: "monterrey", played: false, fromApi: false },
+                { id: 54, date: "25 Jun 03:00", group: "A", home: "República Checa", away: "México", stadium: "mexico_city", played: false, fromApi: false },
+                { id: 55, date: "25 Jun 22:00", group: "E", home: "Ecuador", away: "Alemania", stadium: "por_confirmar", played: false, fromApi: false },
+                { id: 56, date: "25 Jun 22:00", group: "E", home: "Curazao", away: "Costa de Marfil", stadium: "por_confirmar", played: false, fromApi: false },
+                { id: 57, date: "26 Jun 01:00", group: "F", home: "Túnez", away: "Países Bajos", stadium: "por_confirmar", played: false, fromApi: false },
+                { id: 58, date: "26 Jun 01:00", group: "F", home: "Japón", away: "Suecia", stadium: "por_confirmar", played: false, fromApi: false },
+                { id: 59, date: "26 Jun 04:00", group: "D", home: "Paraguay", away: "Australia", stadium: "por_confirmar", played: false, fromApi: false },
+                { id: 60, date: "26 Jun 04:00", group: "D", home: "Turquía", away: "Estados Unidos", stadium: "por_confirmar", played: false, fromApi: false },
+                { id: 61, date: "26 Jun 21:00", group: "I", home: "Noruega", away: "Francia", stadium: "boston", played: false, fromApi: false },
+                { id: 62, date: "26 Jun 21:00", group: "I", home: "Senegal", away: "Irak", stadium: "toronto", played: false, fromApi: false },
+                { id: 63, date: "27 Jun 02:00", group: "H", home: "Uruguay", away: "España", stadium: "guadalajara", played: false, fromApi: false },
+                { id: 64, date: "27 Jun 02:00", group: "H", home: "Cabo Verde", away: "Arabia Saudita", stadium: "houston", played: false, fromApi: false },
+                { id: 65, date: "27 Jun 05:00", group: "G", home: "Nueva Zelanda", away: "Bélgica", stadium: "vancouver", played: false, fromApi: false },
+                { id: 66, date: "27 Jun 05:00", group: "G", home: "Egipto", away: "Irán", stadium: "seattle", played: false, fromApi: false },
+                { id: 67, date: "27 Jun 23:00", group: "L", home: "Panamá", away: "Inglaterra", stadium: "ny_nj", played: false, fromApi: false },
+                { id: 68, date: "27 Jun 23:00", group: "L", home: "Croacia", away: "Ghana", stadium: "philly", played: false, fromApi: false },
+                { id: 69, date: "28 Jun 01:30", group: "K", home: "Colombia", away: "Portugal", stadium: "miami", played: false, fromApi: false },
+                { id: 70, date: "28 Jun 01:30", group: "K", home: "RD Congo", away: "Uzbekistán", stadium: "atlanta", played: false, fromApi: false },
+                { id: 71, date: "28 Jun 04:00", group: "J", home: "Jordania", away: "Argentina", stadium: "dallas", played: false, fromApi: false },
+                { id: 72, date: "28 Jun 04:00", group: "J", home: "Argelia", away: "Austria", stadium: "kansas", played: false, fromApi: false }
+            ];
+            Object.keys(groupsData).forEach(g => teamsList.push(...groupsData[g]));
+            teamsList.sort();
+        }
+
+        let map = L.map('map').setView([39.8283, -98.5795], 4);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
+        let markersGroup = L.layerGroup().addTo(map);
+
+        function initApp() {
+            loadOfficialMatches();
+            
+            // Selector de Mapa
+            const select = document.getElementById('teamSearch');
+            teamsList.forEach(t => {
+                let opt = document.createElement('option'); opt.value = t; opt.innerText = t; select.appendChild(opt);
+            });
+            select.addEventListener('change', (e) => renderMap(e.target.value));
+            
+            // Configurar API si ya existe token
+            if(apiToken) {
+                document.getElementById('apiTokenInput').value = apiToken;
+                conectarAPI(false); // Iniciar sin mostrar alert
+            } else {
+                renderAll(); // Cargar manual si no hay API
+            }
+        }
+
+        // --- 2. LÓGICA DE CONEXIÓN A LA API FOOTBALL-DATA ---
+        async function conectarAPI(showMsg = true) {
+            const tokenInput = document.getElementById('apiTokenInput').value.trim();
+            if(!tokenInput) return;
+            
+            apiToken = tokenInput;
+            localStorage.setItem('football_data_api_token', apiToken);
+            
+            // Cambiar la interfaz para indicar conexión
+            document.getElementById('apiIndicator').classList.add('online');
+            document.getElementById('apiText').innerHTML = "API Conectada & Sincronizando...";
+            document.getElementById('autoUpdateBadge').style.display = 'block';
+
+            if(showMsg) alert("¡Conectado! El sistema sincronizará los marcadores de la API automáticamente.");
+
+            // Hacemos el primer Fetch
+            await fetchApiData();
+            
+            // Repetimos cada 60 segundos
+            if(syncInterval) clearInterval(syncInterval);
+            syncInterval = setInterval(fetchApiData, 60000);
+        }
+
+        async function fetchApiData() {
+            try {
+                // Competencia 2000 es el código universal de World Cup en Football-Data
+                const response = await fetch('https://api.football-data.org/v4/competitions/2000/matches', {
+                    headers: { 'X-Auth-Token': apiToken }
+                });
+                
+                if(!response.ok) throw new Error("Error de autorización o límite de peticiones");
+                
+                const data = await response.json();
+                
+                // Recorrer los partidos que devuelve la API y cruzar datos
+                if(data.matches && data.matches.length > 0) {
+                    data.matches.forEach(apiMatch => {
+                        // Traducir los nombres
+                        const homeES = dictionary[apiMatch.homeTeam.name] || apiMatch.homeTeam.name;
+                        const awayES = dictionary[apiMatch.awayTeam.name] || apiMatch.awayTeam.name;
+                        
+                        // Buscar en nuestra base de datos local
+                        let localMatch = matches.find(m => m.home === homeES && m.away === awayES);
+                        
+                        if(localMatch && (apiMatch.status === "FINISHED" || apiMatch.status === "IN_PLAY")) {
+                            localMatch.hScore = apiMatch.score.fullTime.home;
+                            localMatch.aScore = apiMatch.score.fullTime.away;
+                            localMatch.played = true;
+                            localMatch.fromApi = true; // Flag para bloquear edición manual
+                        }
+                    });
+                }
+                renderAll();
+                
+            } catch (error) {
+                console.error("Fallo de sincronización API:", error);
+                document.getElementById('apiIndicator').classList.remove('online');
+                document.getElementById('apiText').innerHTML = "Error de conexión. Revisar Token.";
+            }
+        }
+
+        // Renderizado general agrupado
+        function renderAll() {
+            renderMap(document.getElementById('teamSearch').value);
+            renderMatches();
+            calculateData();
+        }
+
+        function renderMap(teamFilter) {
+            markersGroup.clearLayers();
+            Object.keys(stadiums).forEach(key => {
+                let s = stadiums[key];
+                let sMatches = matches.filter(m => m.stadium === key && (teamFilter === "" || m.home === teamFilter || m.away === teamFilter));
+                if (sMatches.length > 0) {
+                    let popup = `<h6>📍 ${s.name}</h6><small class="text-muted">${s.city}</small><hr class="my-1">`;
+                    sMatches.forEach(m => {
+                        let res = m.played ? `<span class="badge bg-success rounded-pill">${m.hScore} - ${m.aScore}</span>` : '<span class="badge bg-secondary">VS</span>';
+                        popup += `<div class="mb-2 pb-1 border-bottom" style="font-size: 0.85rem;">${m.home} ${res} ${m.away}</div>`;
+                    });
+                    L.marker([s.lat, s.lng]).addTo(markersGroup).bindPopup(popup);
+                }
+            });
+        }
+
+        function renderMatches() {
+            const tbody = document.getElementById('matchesBody');
+            tbody.innerHTML = "";
+            matches.forEach(m => {
+                const s = stadiums[m.stadium].name;
+                const hVal = m.played ? m.hScore : '';
+                const aVal = m.played ? m.aScore : '';
+                
+                // Si viene de la API, bloqueamos la edición para que no se pisen los datos
+                const isDisabled = m.fromApi ? 'disabled title="Controlado por API"' : '';
+                const btnClass = m.fromApi ? "btn-secondary disabled" : (m.played ? "btn-edit" : "btn-save");
+                const btnText = m.fromApi ? "Automático 🤖" : (m.played ? "Editar" : "Guardar");
+
+                let tr = document.createElement('tr');
+                if(m.fromApi) tr.style.backgroundColor = '#f8fafc'; // Marcar visualmente los de la API
+
+                tr.innerHTML = `
+                    <td class="text-muted small fw-medium">${m.date}</td>
+                    <td><span class="badge badge-group fw-bold">Grp ${m.group}</span></td>
+                    <td><small class="text-secondary">${s}</small></td>
+                    <td class="text-end fw-bold fs-6">${m.home}</td>
+                    <td><input type="number" id="h_${m.id}" class="goal-input" value="${hVal}" ${isDisabled}></td>
+                    <td><input type="number" id="a_${m.id}" class="goal-input" value="${aVal}" ${isDisabled}></td>
+                    <td class="text-start fw-bold fs-6">${m.away}</td>
+                    <td><button class="btn btn-modern ${btnClass} w-100" onclick="saveMatch(${m.id})" ${isDisabled}>${btnText}</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        window.saveMatch = function(id) {
+            let hInput = document.getElementById(`h_${id}`).value;
+            let aInput = document.getElementById(`a_${id}`).value;
+            if(hInput === "" || aInput === "") return alert("Completa el marcador.");
+            let match = matches.find(m => m.id === id);
+            match.hScore = parseInt(hInput); match.aScore = parseInt(aInput); match.played = true;
+            renderAll();
+        }
+
+        function calculateData() {
+            let stats = {};
+            Object.keys(groupsData).forEach(g => {
+                stats[g] = {};
+                groupsData[g].forEach(t => { stats[g][t] = { name: t, pts: 0, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, gd: 0 }; });
+            });
+            matches.forEach(m => {
+                if(m.played) {
+                    let h = stats[m.group][m.home]; let a = stats[m.group][m.away];
+                    h.p++; a.p++; h.gf += m.hScore; h.ga += m.aScore; a.gf += m.aScore; a.ga += m.hScore;
+                    if(m.hScore > m.aScore) { h.w++; h.pts+=3; a.l++; }
+                    else if(m.hScore < m.aScore) { a.w++; a.pts+=3; h.l++; }
+                    else { h.d++; a.d++; h.pts++; a.pts++; }
+                    h.gd = h.gf - h.ga; a.gd = a.gf - a.ga;
+                }
+            });
+            Object.keys(stats).forEach(group => {
+                finalStandings[group] = Object.values(stats[group]).sort((a,b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf);
+            });
+            renderTables();
+            checkAndRenderBracketCondition();
+        }
+
+        function renderTables() {
+            const container = document.getElementById('groupsContainer');
+            container.innerHTML = "";
+            Object.keys(finalStandings).forEach(g => {
+                let html = `<div class="col-lg-3 col-md-6 mb-4"><div class="group-card h-100"><div class="group-header">Grupo ${g}</div><table class="table table-sm mb-0 text-center" style="font-size:0.82rem;"><thead style="background: #f8fafc;"><tr><th class="text-start ps-2">País</th><th>PTS</th><th>DG</th></tr></thead><tbody>`;
+                finalStandings[g].forEach((t, i) => {
+                    let mark = i === 0 ? "style='background-color:#eff6ff;' class='fw-bold'" : (i === 1 ? "class='fw-bold'" : "class='text-muted'");
+                    html += `<tr ${mark}><td class="text-start ps-2">${i===0?'⭐':''} ${t.name}</td><td class="fw-bold">${t.pts}</td><td>${t.gd>0?'+'+t.gd:t.gd}</td></tr>`;
+                });
+                html += `</tbody></table></div></div>`;
+                container.innerHTML += html;
+            });
+        }
+
+        function checkAndRenderBracketCondition() {
+            const container = document.getElementById('bracketContentWrapper');
+            let playedCount = matches.filter(m => m.played).length;
+            let totalMatches = matches.length;
+            let percentage = Math.round((playedCount / totalMatches) * 100);
+
+            if (playedCount < totalMatches) {
+                container.innerHTML = `
+                    <div class="locked-bracket-message glass-card">
+                        <h3 class="fw-bold text-dark mb-2">🔒 Fase Eliminatoria Bloqueada</h3>
+                        <p class="text-muted m-0">El sistema de cruces se activará automáticamente (y la API arrastrará los equipos) cuando termine la fase de grupos.</p>
+                        <div class="progress-container-custom mt-4" style="max-width: 500px; margin: 0 auto;">
+                            <div class="d-flex justify-content-between mb-1 small fw-bold text-secondary">
+                                <span>Partidos jugados: ${playedCount} / ${totalMatches}</span>
+                                <span>${percentage}%</span>
+                            </div>
+                            <div class="progress" style="height: 10px; border-radius: 50px;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" style="width: ${percentage}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <div class="phase-section"><div class="phase-title text-danger">🔴 Dieciseisavos de Final</div><div class="bracket-row" id="container-r32"></div></div>
+                    <div class="phase-section"><div class="phase-title text-primary">🟢 Octavos de Final</div><div class="bracket-row" id="container-r16"></div></div>
+                    <div class="phase-section"><div class="phase-title text-success">🔵 Cuartos de Final</div><div class="bracket-row" id="container-r8"></div></div>
+                    <div class="phase-section"><div class="phase-title text-warning">🟡 Semifinales</div><div class="bracket-row" id="container-r4"></div></div>
+                    <div class="phase-section" style="border:none; padding:0; margin:0;"><div class="phase-title" style="color:#7209b7;">🏆 Gran Final y Tercer Puesto</div><div class="bracket-row" id="container-finals"></div></div>
+                `;
+                calculateAndRenderEliminatorias();
+            }
+        }
+
+        window.saveKoScore = function(id) {
+            let h = document.getElementById(`ko_h_${id}`).value; let a = document.getElementById(`ko_a_${id}`).value;
+            if(h === "" || a === "") return alert("Introduce los goles.");
+            if(parseInt(h) === parseInt(a)) return alert("Debe haber un ganador. Desempata el marcador simulando prórroga o penaltis.");
+            knockoutScores[id] = { hScore: parseInt(h), aScore: parseInt(a) };
+            calculateAndRenderEliminatorias();
+        }
+
+        function calculateAndRenderEliminatorias() {
+            let firsts = {}; let seconds = {}; let thirds = [];
+            Object.keys(finalStandings).forEach(g => {
+                let table = finalStandings[g];
+                firsts[g] = table[0].name; seconds[g] = table[1].name;
+                thirds.push({ team: table[2].name, group: g, pts: table[2].pts, gd: table[2].gd, gf: table[2].gf });
+            });
+            thirds.sort((a,b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf);
+            let availableThirds = thirds.slice(0, 8);
+
+            function getBestThird(allowedGroups) {
+                let idx = availableThirds.findIndex(t => allowedGroups.includes(t.group));
+                if (idx !== -1) return availableThirds.splice(idx, 1)[0].team;
+                return availableThirds.shift()?.team || "Por definir";
+            }
+
+            let koTree = {};
+
+            let matchesDef = [
+                { id: 73, name: "P73", phase: "r32", date: "28 Jun", t1: seconds['A'], t2: seconds['B'], stadium: "la", inf1: "2ºA", inf2: "2ºB" },
+                { id: 74, name: "P74", phase: "r32", date: "29 Jun", t1: firsts['E'], t2: getBestThird(['A','B','C','D','F']), stadium: "boston", inf1: "1ºE", inf2: "3ºA/B/C/D/F" },
+                { id: 75, name: "P75", phase: "r32", date: "29 Jun", t1: firsts['F'], t2: seconds['C'], stadium: "monterrey", inf1: "1ºF", inf2: "2ºC" },
+                { id: 76, name: "P76", phase: "r32", date: "29 Jun", t1: firsts['C'], t2: seconds['F'], stadium: "houston", inf1: "1ºC", inf2: "2ºF" },
+                { id: 77, name: "P77", phase: "r32", date: "30 Jun", t1: firsts['I'], t2: getBestThird(['C','D','F','G','H']), stadium: "ny_nj", inf1: "1ºI", inf2: "3ºC/D/F/G/H" },
+                { id: 78, name: "P78", phase: "r32", date: "30 Jun", t1: seconds['E'], t2: seconds['I'], stadium: "dallas", inf1: "2ºE", inf2: "2ºI" },
+                { id: 79, name: "P79", phase: "r32", date: "30 Jun", t1: firsts['A'], t2: getBestThird(['C','E','F','H','I']), stadium: "mexico_city", inf1: "1ºA", inf2: "3ºC/E/F/H/I" },
+                { id: 80, name: "P80", phase: "r32", date: "1 Jul", t1: firsts['L'], t2: getBestThird(['E','H','I','J','K']), stadium: "atlanta", inf1: "1ºL", inf2: "3ºE/H/I/J/K" },
+                { id: 81, name: "P81", phase: "r32", date: "1 Jul", t1: firsts['D'], t2: getBestThird(['B','E','F','I','J']), stadium: "sf_bay", inf1: "1ºD", inf2: "3ºB/E/F/I/J" },
+                { id: 82, name: "P82", phase: "r32", date: "1 Jul", t1: firsts['G'], t2: getBestThird(['A','E','H','I','J']), stadium: "seattle", inf1: "1ºG", inf2: "3ºA/E/H/I/J" },
+                { id: 83, name: "P83", phase: "r32", date: "2 Jul", t1: seconds['K'], t2: seconds['L'], stadium: "toronto", inf1: "2ºK", inf2: "2ºL" },
+                { id: 84, name: "P84", phase: "r32", date: "2 Jul", t1: firsts['H'], t2: seconds['J'], stadium: "la", inf1: "1ºH", inf2: "2ºJ" },
+                { id: 85, name: "P85", phase: "r32", date: "2 Jul", t1: firsts['B'], t2: getBestThird(['E','F','G','I','J']), stadium: "vancouver", inf1: "1ºB", inf2: "3ºE/F/G/I/J" },
+                { id: 86, name: "P86", phase: "r32", date: "3 Jul", t1: firsts['J'], t2: seconds['H'], stadium: "miami", inf1: "1ºJ", inf2: "2ºH" },
+                { id: 87, name: "P87", phase: "r32", date: "3 Jul", t1: firsts['K'], t2: getBestThird(['D','E','I','J','L']), stadium: "kansas", inf1: "1ºK", inf2: "3ºD/E/I/J/L" },
+                { id: 88, name: "P88", phase: "r32", date: "3 Jul", t1: seconds['D'], t2: seconds['G'], stadium: "dallas", inf1: "2ºD", inf2: "2ºG" }
+            ];
+
+            matchesDef.forEach(m => {
+                let sc = knockoutScores[m.id] || { hScore: '', aScore: '' };
+                koTree[m.name] = { ...m, ...sc, winner: '', loser: '' };
+                if(sc.hScore !== '' && sc.aScore !== '') {
+                    koTree[m.name].winner = sc.hScore > sc.aScore ? m.t1 : m.t2;
+                    koTree[m.name].loser = sc.hScore > sc.aScore ? m.t2 : m.t1;
+                }
+            });
+
+            let r16Def = [
+                { id: 89, name: "P89", phase: "r16", date: "4 Jul", src1: "P74", src2: "P77", stadium: "philly" },
+                { id: 90, name: "P90", phase: "r16", date: "4 Jul", src1: "P73", src2: "P75", stadium: "houston" },
+                { id: 91, name: "P91", phase: "r16", date: "5 Jul", src1: "P76", src2: "P78", stadium: "ny_nj" },
+                { id: 92, name: "P92", phase: "r16", date: "5 Jul", src1: "P79", src2: "P80", stadium: "mexico_city" },
+                { id: 93, name: "P93", phase: "r16", date: "6 Jul", src1: "P83", src2: "P84", stadium: "dallas" },
+                { id: 94, name: "P94", phase: "r16", date: "6 Jul", src1: "P81", src2: "P82", stadium: "seattle" },
+                { id: 95, name: "P95", phase: "r16", date: "7 Jul", src1: "P86", src2: "P88", stadium: "atlanta" },
+                { id: 96, name: "P96", phase: "r16", date: "7 Jul", src1: "P85", src2: "P87", stadium: "vancouver" }
+            ];
+
+            r16Def.forEach(m => {
+                let t1 = koTree[m.src1].winner || `Ganador ${m.src1}`; let t2 = koTree[m.src2].winner || `Ganador ${m.src2}`;
+                let sc = knockoutScores[m.id] || { hScore: '', aScore: '' };
+                koTree[m.name] = { ...m, t1, t2, ...sc, inf1: m.src1, inf2: m.src2, winner: '', loser: '' };
+                if(sc.hScore !== '' && sc.aScore !== '' && koTree[m.src1].winner && koTree[m.src2].winner) {
+                    koTree[m.name].winner = sc.hScore > sc.aScore ? t1 : t2; koTree[m.name].loser = sc.hScore > sc.aScore ? t2 : t1;
+                }
+            });
+
+            let r8Def = [
+                { id: 97, name: "P97", phase: "r8", date: "9 Jul", src1: "P89", src2: "P90", stadium: "boston" },
+                { id: 98, name: "P98", phase: "r8", date: "10 Jul", src1: "P93", src2: "P94", stadium: "la" },
+                { id: 99, name: "P99", phase: "r8", date: "11 Jul", src1: "P91", src2: "P92", stadium: "miami" },
+                { id: 100, name: "P100", phase: "r8", date: "11 Jul", src1: "P95", src2: "P96", stadium: "kansas" }
+            ];
+
+            r8Def.forEach(m => {
+                let t1 = koTree[m.src1].winner || `Ganador ${m.src1}`; let t2 = koTree[m.src2].winner || `Ganador ${m.src2}`;
+                let sc = knockoutScores[m.id] || { hScore: '', aScore: '' };
+                koTree[m.name] = { ...m, t1, t2, ...sc, inf1: m.src1, inf2: m.src2, winner: '', loser: '' };
+                if(sc.hScore !== '' && sc.aScore !== '' && koTree[m.src1].winner && koTree[m.src2].winner) {
+                    koTree[m.name].winner = sc.hScore > sc.aScore ? t1 : t2; koTree[m.name].loser = sc.hScore > sc.aScore ? t2 : t1;
+                }
+            });
+
+            let r4Def = [
+                { id: 101, name: "P101", phase: "r4", date: "14 Jul", src1: "P97", src2: "P98", stadium: "dallas" },
+                { id: 102, name: "P102", phase: "r4", date: "15 Jul", src1: "P99", src2: "P100", stadium: "atlanta" }
+            ];
+
+            r4Def.forEach(m => {
+                let t1 = koTree[m.src1].winner || `Ganador ${m.src1}`; let t2 = koTree[m.src2].winner || `Ganador ${m.src2}`;
+                let sc = knockoutScores[m.id] || { hScore: '', aScore: '' };
+                koTree[m.name] = { ...m, t1, t2, ...sc, inf1: m.src1, inf2: m.src2, winner: '', loser: '' };
+                if(sc.hScore !== '' && sc.aScore !== '' && koTree[m.src1].winner && koTree[m.src2].winner) {
+                    koTree[m.name].winner = sc.hScore > sc.aScore ? t1 : t2; koTree[m.name].loser = sc.hScore > sc.aScore ? t2 : t1;
+                }
+            });
+
+            let finalsDef = [
+                { id: 103, name: "Tercer Puesto", phase: "finals", date: "18 Jul", src1: "P101", src2: "P102", stadium: "miami" },
+                { id: 104, name: "La Final", phase: "finals", date: "19 Jul", src1: "P101", src2: "P102", stadium: "ny_nj" }
+            ];
+
+            finalsDef.forEach(m => {
+                let t1, t2;
+                if(m.name === "La Final") {
+                    t1 = koTree['P101'].winner || "Ganador P101"; t2 = koTree['P102'].winner || "Ganador P102";
+                } else {
+                    t1 = koTree['P101'].loser || "Perdedor P101"; t2 = koTree['P102'].loser || "Perdedor P102";
+                }
+                let sc = knockoutScores[m.id] || { hScore: '', aScore: '' };
+                koTree[m.name] = { ...m, t1, t2, ...sc, inf1: m.name==="La Final"?"Gan. P101":"Perd. P101", inf2: m.name==="La Final"?"Gan. P102":"Perd. P102" };
+            });
+
+            const containers = { r32: 'container-r32', r16: 'container-r16', r8: 'container-r8', r4: 'container-r4', finals: 'container-finals' };
+            Object.keys(containers).forEach(c => document.getElementById(containers[c]).innerHTML = "");
+
+            Object.values(koTree).forEach(m => {
+                let targetId = containers[m.phase];
+                let std = stadiums[m.stadium].name;
+                let btnText = (m.hScore !== '') ? "✓ Editar" : "Guardar";
+                let btnClass = (m.hScore !== '') ? "btn-edit" : "btn-save";
+                
+                let card = `
+                    <div class="ko-match-card border-${m.phase}">
+                        <div class="ko-match-header"><span>⚽ ${m.name} | ${m.date}</span><small class="text-primary fw-bold text-end">${std}</small></div>
+                        <div class="ko-team-row"><span class="ko-team-name">${m.t1}</span><span class="badge-info-ko">${m.inf1}</span><input type="number" id="ko_h_${m.id}" class="goal-input" value="${m.hScore}"></div>
+                        <div class="ko-team-row"><span class="ko-team-name">${m.t2}</span><span class="badge-info-ko">${m.inf2}</span><input type="number" id="ko_a_${m.id}" class="goal-input" value="${m.aScore}"></div>
+                        <button class="btn btn-modern ${btnClass} w-100 mt-2" onclick="saveKoScore(${m.id})">${btnText}</button>
+                    </div>`;
+                document.getElementById(targetId).innerHTML += card;
+            });
+        }
+
+        window.onload = initApp;
+    </script>
+</body>
+</html>
